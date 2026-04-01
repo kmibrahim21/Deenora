@@ -10,9 +10,10 @@ import { useOfflineStatus } from '../hooks/useOffline';
 
 interface AuthProps {
   lang: Language;
+  onTeacherLoginClick: () => void;
 }
 
-const Auth: React.FC<AuthProps> = ({ lang }) => {
+const Auth: React.FC<AuthProps> = ({ lang, onTeacherLoginClick }) => {
   const isOnline = useOfflineStatus();
   const [loginType, setLoginType] = useState<'admin' | 'teacher'>('admin');
   const [email, setEmail] = useState('');
@@ -73,29 +74,17 @@ const Auth: React.FC<AuthProps> = ({ lang }) => {
     setError('');
 
     try {
-      const cleanPhone = phone.replace(/\D/g, '');
-      const cleanPin = code.trim();
-      const { data: results, error: fetchError } = await supabase.rpc('check_teacher_login', {
-        p_phone: cleanPhone,
-        p_pin: cleanPin
+      const response = await fetch('/api/teachers/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile: phone, password: code })
       });
 
-      if (fetchError) {
-        console.error("Teacher login RPC error:", fetchError);
-        throw new Error(lang === 'bn' ? `সার্ভার সংযোগে সমস্যা হচ্ছে: ${fetchError.message}` : `Server connection error: ${fetchError.message}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || (lang === 'bn' ? 'ভুল মোবাইল নম্বর অথবা পিন কোড!' : 'Invalid mobile or PIN!'));
       }
-
-      const data = results?.[0];
-      if (!data) throw new Error(lang === 'bn' ? 'ভুল মোবাইল নম্বর অথবা পিন কোড!' : 'Invalid Phone or PIN!');
-      if (!data.is_active) throw new Error(lang === 'bn' ? 'আপনার একাউন্টটি নিষ্ক্রিয়' : 'Account is inactive');
-
-      // Now sign in with the supabase email and pin
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: data.supabase_email,
-        password: cleanPin
-      });
-
-      if (signInError) throw signInError;
 
       localStorage.setItem('teacher_session', JSON.stringify(data));
       window.location.reload(); 

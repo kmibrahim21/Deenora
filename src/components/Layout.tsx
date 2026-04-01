@@ -29,10 +29,15 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const isSuperAdmin = profile?.role === 'super_admin';
-  const role = profile?.role || 'teacher';
+  const isManager = profile?.role === 'manager';
+  const role = profile?.role || 'madrasah_admin';
   
   const canAccess = (module: string) => {
     if (profile?.role === 'super_admin') return true;
+    if (profile?.role === 'manager') {
+      if (!profile.permissions) return true;
+      return profile.permissions[module as keyof typeof profile.permissions] !== false;
+    }
     return false;
   };
   
@@ -83,7 +88,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
 
   const isTabActive = (tab: string) => {
     if (tab === 'home' && currentView === 'home') return true;
-    if (tab === 'account' && (currentView === 'account' || currentView === 'super-account' || currentView === 'admin-voice-service' || currentView === 'admin-tutorials')) return true;
+    if (tab === 'account' && (currentView === 'account' || currentView === 'super-account' || currentView === 'admin-managers' || currentView === 'admin-voice-service' || currentView === 'admin-tutorials')) return true;
     if (tab === 'list' && currentView === 'admin-panel') return true;
     if (tab === 'dashboard' && currentView === 'admin-dashboard') return true;
     if (tab === 'approvals' && currentView === 'admin-approvals') return true;
@@ -117,13 +122,13 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
               {isSuperAdmin ? (lang === 'bn' ? 'সুপার অ্যাডমিন' : 'Super Admin') : (madrasah?.name || (madrasah?.institution_type === 'school' ? 'School Portal' : 'Madrasah Portal'))}
             </h1>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 font-noto">
-              {role === 'super_admin' ? 'Super Admin Portal' : role === 'teacher' ? 'Teacher Portal' : role === 'accountant' ? 'Accounts Portal' : 'Admin Portal'}
+              {role === 'super_admin' ? 'Super Admin Portal' : role === 'manager' ? 'System Manager' : role === 'accountant' ? 'Accounts Portal' : 'Admin Portal'}
             </p>
           </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-          {isSuperAdmin ? (
+          {isSuperAdmin || isManager ? (
             <>
               {canAccess('dashboard') && (
                 <button onClick={() => setView('admin-dashboard')} className={`flex items-center gap-4 p-4 rounded-2xl transition-all w-full ${isTabActive('dashboard') ? (madrasah?.theme === 'dark' ? 'bg-slate-800 text-blue-400' : 'bg-slate-50 text-blue-700') : (madrasah?.theme === 'dark' ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-300' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700')}`}>
@@ -231,7 +236,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
                 {isSuperAdmin ? (lang === 'bn' ? 'সুপার অ্যাডমিন' : 'Super Admin') : (madrasah?.name || (madrasah?.institution_type === 'school' ? 'School Portal' : 'Madrasah Portal'))}
               </h1>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 font-noto">
-                {role === 'super_admin' ? 'Super Admin Portal' : role === 'teacher' ? 'Teacher Portal' : role === 'accountant' ? 'Accounts Portal' : 'Admin Portal'}
+                {role === 'super_admin' ? 'Super Admin Portal' : role === 'manager' ? 'System Manager' : role === 'accountant' ? 'Accounts Portal' : 'Admin Portal'}
               </p>
             </div>
           </div>
@@ -272,7 +277,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
         <div className="fixed md:hidden bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-md z-[200]">
         <nav className={`backdrop-blur-[25px] border flex justify-around items-center py-4 px-1 rounded-[2.5rem] shadow-bubble ${madrasah?.theme === 'dark' ? 'bg-slate-800/95 border-slate-700' : 'bg-white/95 border-slate-200'}`}>
 
-          {isSuperAdmin ? (
+          {isSuperAdmin || isManager ? (
             <>
               {canAccess('dashboard') && (
                 <button onClick={() => setView('admin-dashboard')} className={`relative flex flex-col items-center gap-1 transition-all flex-1 ${isTabActive('dashboard') ? (madrasah?.theme === 'dark' ? 'text-blue-400' : 'text-[#2563EB]') : (madrasah?.theme === 'dark' ? 'text-slate-500' : 'text-[#94A3B8]')}`}>

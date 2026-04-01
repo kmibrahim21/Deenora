@@ -6,12 +6,12 @@ SECURITY DEFINER
 SET search_path = public, auth
 AS $$
 BEGIN
-  -- Check if the caller is a super admin
+  -- Check if the caller is a super admin or manager
   IF NOT (
     EXISTS (
       SELECT 1 FROM public.profiles 
       WHERE id = auth.uid() 
-      AND role = 'super_admin'
+      AND (role = 'super_admin' OR role = 'manager')
     )
   ) THEN
     RAISE EXCEPTION 'Unauthorized';

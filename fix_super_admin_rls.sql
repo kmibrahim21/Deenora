@@ -4,7 +4,7 @@ RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role = 'super_admin'
+    WHERE id = auth.uid() AND (role = 'super_admin' OR role = 'manager')
   ) OR (auth.jwt()->>'email' IN ('kmibrahim@gmail.com', 'thedevomix@gmail.com'));
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

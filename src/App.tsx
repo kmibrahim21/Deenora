@@ -15,9 +15,9 @@ import StudentForm from 'pages/StudentForm';
 import Account from 'pages/Account';
 import SuperAccount from 'pages/SuperAccount';
 import AdminPanel from 'pages/AdminPanel';
+import { ManagersManager } from 'components/admin/ManagersManager';
 import WalletSMS from 'pages/WalletSMS';
 import DataManagement from 'pages/DataManagement';
-import Teachers from 'pages/Teachers';
 import Accounting from 'pages/Accounting';
 import Attendance from 'pages/Attendance';
 import Exams from 'pages/Exams';
@@ -26,6 +26,8 @@ import VoiceBroadcast from 'pages/VoiceBroadcast';
 import SmsVoiceMenu from 'pages/SmsVoiceMenu';
 import AcademicCalendarPage from 'pages/AcademicCalendarPage';
 import Tutorials from 'pages/Tutorials';
+import TeacherManagement from 'pages/TeacherManagement';
+import TeacherLogin from 'pages/TeacherLogin';
 import { VoiceServiceDashboard } from 'components/VoiceServiceDashboard';
 import { TutorialsManager } from 'components/TutorialsManager';
 import { View, Class, Student, Language } from 'types';
@@ -36,6 +38,10 @@ import { createPortal } from 'react-dom';
 const App: React.FC = () => {
   useSyncEngine();
   const { session, profile, madrasah, loading, authError, handleLogout, refreshMadrasah } = useAuth();
+  const [teacherSession, setTeacherSession] = useState<any>(() => {
+    const saved = localStorage.getItem('teacher_session');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [view, setView] = useState<View>('home');
   useAndroidBackHandler(view, setView);
   const [walletTab, setWalletTab] = useState<'templates' | 'bulk-sms' | 'history' | 'recharge'>('bulk-sms');
@@ -57,7 +63,7 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    if (profile?.role === 'super_admin' && view === 'home') {
+    if ((profile?.role === 'super_admin' || profile?.role === 'manager') && view === 'home') {
       setView('admin-dashboard');
     }
   }, [profile?.role, view]);
@@ -109,10 +115,16 @@ const App: React.FC = () => {
     </div>
   );
 
-  if (!session && !madrasah) return <Auth lang={lang} />;
+  if (view === 'teacher-login') {
+    return <TeacherLogin madrasah={madrasah} lang={lang} onBack={() => setView('home')} onLoginSuccess={(data) => { setTeacherSession(data); setView('home'); }} />;
+  }
+
+  if (!session && !madrasah && !teacherSession) return <Auth lang={lang} onTeacherLoginClick={() => setView('teacher-login')} />;
 
   const renderView = () => {
-    const role = profile?.role || 'teacher';
+    const role = teacherSession ? 'teacher' : (profile?.role || 'madrasah_admin');
+    const currentMadrasah = madrasah || teacherSession?.institute;
+    const permissions = teacherSession?.permissions || profile?.permissions;
 
     switch (view) {
       case 'home':
@@ -121,14 +133,14 @@ const App: React.FC = () => {
                   lang={lang} 
                   dataVersion={dataVersion} 
                   triggerRefresh={triggerRefresh} 
-                  institutionId={madrasah?.id} 
-                  madrasah={madrasah}
-                  isAdmin={role === 'madrasah_admin' || role === 'super_admin' || !!profile?.permissions?.can_send_sms || !!profile?.permissions?.can_use_voice_call}
+                  institutionId={currentMadrasah?.id} 
+                  madrasah={currentMadrasah}
+                  isAdmin={role === 'madrasah_admin' || role === 'super_admin' || !!permissions?.can_send_sms || !!permissions?.can_use_voice_call}
                   onNavigateToWallet={() => {
                     const modules = {
                       voice_broadcast: true,
                       sms: true,
-                      ...(madrasah?.config_json?.modules || {})
+                      ...(currentMadrasah?.config_json?.modules || {})
                     };
                     if (modules.sms !== false || modules.voice_broadcast) {
                       setWalletTab('bulk-sms');
@@ -139,13 +151,13 @@ const App: React.FC = () => {
                   onNavigateToAttendance={() => setView('attendance')}
                   onNavigateToExams={() => setView('exams')}
                   onNavigateToClasses={() => setView('classes')}
-                  onNavigateToTeachers={() => setView('teachers')}
-                  onNavigateToVoiceBroadcast={() => {
-                    setView('voice-broadcast');
-                  }}
+                  onNavigateToVoiceBroadcast={() => setView('voice-broadcast')}
+                  onNavigateToTutorials={() => setView('tutorials')}
+                  onNavigateToAcademicYear={() => setView('academic-calendar')}
+                  onNavigateToDataManagement={() => setView('data-management')}
                 />;
       case 'classes':
-        return <Classes onClassClick={(cls) => { setSelectedClass(cls); setView('students'); }} lang={lang} madrasah={madrasah} dataVersion={dataVersion} triggerRefresh={triggerRefresh} readOnly={role === 'teacher' && !profile?.permissions?.can_manage_classes} />;
+        return <Classes onClassClick={(cls) => { setSelectedClass(cls); setView('students'); }} lang={lang} madrasah={currentMadrasah} dataVersion={dataVersion} triggerRefresh={triggerRefresh} readOnly={role === 'teacher' && !permissions?.can_manage_students} />;
       case 'students':
         if (!selectedClass) { setView('classes'); return null; }
         return <Students 
@@ -156,45 +168,57 @@ const App: React.FC = () => {
                   lang={lang} 
                   dataVersion={dataVersion} 
                   triggerRefresh={triggerRefresh} 
-                  canAdd={role !== 'teacher' || !!profile?.permissions?.can_manage_students}
-                  canSendSMS={role !== 'teacher' || !!profile?.permissions?.can_send_sms}
-                  institutionId={madrasah?.id}
+                  canAdd={role !== 'teacher' || permissions?.can_manage_students}
+                  canSendSMS={role !== 'teacher' || permissions?.can_send_sms}
+                  institutionId={currentMadrasah?.id}
                 />;
       case 'student-details':
         if (!selectedStudent) { setView('home'); return null; }
         return <StudentDetails 
                   student={selectedStudent} 
-                  madrasah={madrasah}
+                  madrasah={currentMadrasah}
                   onEdit={() => { setIsEditing(true); setView('student-form'); }} 
                   onBack={() => setView('students')} 
                   lang={lang} 
-                  readOnly={role === 'teacher' && !profile?.permissions?.can_manage_students}
-                  institutionId={madrasah?.id}
+                  readOnly={role === 'teacher' && !permissions?.can_manage_students}
+                  institutionId={currentMadrasah?.id}
                   triggerRefresh={triggerRefresh}
                 />;
       case 'student-form':
-        return <StudentForm student={selectedStudent} madrasah={madrasah} defaultClassId={selectedClass?.id} isEditing={isEditing} onSuccess={() => { triggerRefresh(); setView('students'); }} onCancel={() => setView('students')} lang={lang} />;
+        if (role === 'teacher' && !permissions?.can_manage_students) { setView('students'); return null; }
+        return <StudentForm student={selectedStudent} madrasah={currentMadrasah} defaultClassId={selectedClass?.id} isEditing={isEditing} onSuccess={() => { triggerRefresh(); setView('students'); }} onCancel={() => setView('students')} lang={lang} />;
       case 'account':
-        return <Account lang={lang} setLang={(l) => { setLang(l); localStorage.setItem('app_lang', l); }} initialMadrasah={madrasah} permissions={profile?.permissions} setView={setView} onLogout={handleLogout} isTeacher={role === 'teacher'} onProfileUpdate={refreshMadrasah} />;
+        return <Account lang={lang} setLang={(l) => { setLang(l); localStorage.setItem('app_lang', l); }} initialMadrasah={currentMadrasah} isSystemManager={role === 'manager'} permissions={permissions} setView={setView} onLogout={() => { if (teacherSession) { localStorage.removeItem('teacher_session'); setTeacherSession(null); setView('home'); } else { handleLogout(); } }} onProfileUpdate={refreshMadrasah} role={role} />;
+      case 'teacher-management':
+      case 'teachers':
+        if (role !== 'madrasah_admin' && role !== 'super_admin') { setView('home'); return null; }
+        return <TeacherManagement lang={lang} madrasah={currentMadrasah} onBack={() => setView('account')} />;
       case 'super-account':
         if (role !== 'super_admin') { setView('home'); return null; }
         return <SuperAccount lang={lang} setLang={(l) => { setLang(l); localStorage.setItem('app_lang', l); }} initialMadrasah={madrasah} setView={setView} onLogout={handleLogout} onProfileUpdate={refreshMadrasah} />;
       case 'admin-panel':
       case 'admin-approvals':
       case 'admin-dashboard':
-        if (role !== 'super_admin') { setView('home'); return null; }
+      case 'admin-managers':
+        if (role !== 'super_admin' && role !== 'manager') { setView('home'); return null; }
         
-        const permissions = profile?.permissions;
         if (view === 'admin-dashboard' && permissions?.dashboard === false) { setView('home'); return null; }
         if (view === 'admin-panel' && permissions?.institutions === false) { setView('home'); return null; }
         if (view === 'admin-approvals' && permissions?.approvals === false) { setView('home'); return null; }
+        if (view === 'admin-managers' && permissions?.managers === false) { setView('home'); return null; }
         
+        if (view === 'admin-managers') {
+          return <ManagersManager onBack={() => setView('account')} madrasah={madrasah} />;
+        }
+
         return <AdminPanel lang={lang} currentView={view === 'admin-approvals' ? 'approvals' : view === 'admin-dashboard' ? 'dashboard' : 'list'} dataVersion={dataVersion} onProfileUpdate={refreshMadrasah} madrasah={madrasah} profile={profile} setStatusModal={setStatusModal} />;
       case 'admin-voice-service':
-        if (role !== 'super_admin') { setView('home'); return null; }
+        if (role !== 'super_admin' && role !== 'manager') { setView('home'); return null; }
+        if (role === 'manager' && profile?.permissions?.voice_broadcast === false) { setView('home'); return null; }
         return <VoiceServiceDashboard onBack={() => setView('account')} madrasah={madrasah} setStatusModal={setStatusModal} />;
       case 'admin-tutorials':
-        if (role !== 'super_admin') { setView('home'); return null; }
+        if (role !== 'super_admin' && role !== 'manager') { setView('home'); return null; }
+        if (role === 'manager' && profile?.permissions?.tutorials === false) { setView('home'); return null; }
         return <TutorialsManager onBack={() => setView('account')} madrasah={madrasah} setStatusModal={setStatusModal} />;
       case 'wallet-sms':
         return <WalletSMS lang={lang} madrasah={madrasah} triggerRefresh={triggerRefresh} dataVersion={dataVersion} initialTab={walletTab} />;
@@ -208,16 +232,18 @@ const App: React.FC = () => {
         return <Tutorials lang={lang} madrasah={madrasah} onBack={() => setView('account')} />;
       case 'data-management':
         return <DataManagement lang={lang} madrasah={madrasah} onBack={() => setView('account')} triggerRefresh={triggerRefresh} />;
-      case 'teachers':
-        return <Teachers lang={lang} madrasah={madrasah} onBack={() => setView('account')} />;
       case 'accounting':
-        return <Accounting lang={lang} madrasah={madrasah} onBack={() => setView('home')} role={role} />;
+        if (role === 'teacher' && !permissions?.can_manage_accounting) { setView('home'); return null; }
+        return <Accounting lang={lang} madrasah={currentMadrasah} onBack={() => setView('home')} role={role} />;
       case 'attendance':
-        return <Attendance lang={lang} madrasah={madrasah} onBack={() => setView('home')} userId={session?.user?.id} />;
+        if (role === 'teacher' && !permissions?.can_manage_attendance) { setView('home'); return null; }
+        return <Attendance lang={lang} madrasah={currentMadrasah} onBack={() => setView('home')} userId={teacherSession?.id || session?.user?.id} />;
       case 'exams':
-        return <Exams lang={lang} madrasah={madrasah} onBack={() => setView('home')} role={role} onNavigateToFinalResults={() => setView('final-results')} />;
+        if (role === 'teacher' && !permissions?.can_manage_exams) { setView('home'); return null; }
+        return <Exams lang={lang} madrasah={currentMadrasah} onBack={() => setView('home')} role={role} onNavigateToFinalResults={() => setView('final-results')} />;
       case 'final-results':
-        return <FinalResults lang={lang} madrasah={madrasah} onBack={() => setView('home')} role={role} />;
+        if (role === 'teacher' && !permissions?.can_manage_exams) { setView('home'); return null; }
+        return <FinalResults lang={lang} madrasah={currentMadrasah} onBack={() => setView('home')} role={role} />;
       default:
         return <Home 
                   onStudentClick={(s) => { setSelectedStudent(s); setView('student-details'); }} 
@@ -242,10 +268,10 @@ const App: React.FC = () => {
                   onNavigateToAttendance={() => setView('attendance')}
                   onNavigateToExams={() => setView('exams')}
                   onNavigateToClasses={() => setView('classes')}
-                  onNavigateToTeachers={() => setView('teachers')}
-                  onNavigateToVoiceBroadcast={() => {
-                    setView('voice-broadcast');
-                  }}
+                  onNavigateToVoiceBroadcast={() => setView('voice-broadcast')}
+                  onNavigateToTutorials={() => setView('tutorials')}
+                  onNavigateToAcademicYear={() => setView('academic-calendar')}
+                  onNavigateToDataManagement={() => setView('data-management')}
                 />;
     }
   };

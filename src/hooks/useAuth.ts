@@ -12,16 +12,6 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const clearSession = () => {
-    localStorage.removeItem('madrasah_auth_token');
-    localStorage.removeItem('teacher_session');
-    OfflineService.removeCache('profile');
-    setSession(null);
-    setProfile(null);
-    setMadrasah(null);
-    window.location.reload();
-  };
-
   const fetchUserProfile = async (userId: string, email?: string) => {
     if (!isValidUUID(userId)) {
       setLoading(false);
@@ -42,11 +32,6 @@ export const useAuth = () => {
       
       if (profileError) {
         console.error("Profile fetch error:", profileError);
-        // Check for auth errors
-        const errMsg = profileError.message.toLowerCase();
-        if (errMsg.includes('refresh token') || errMsg.includes('refresh_token_not_found')) {
-          clearSession();
-        }
         throw profileError;
       }
 
@@ -138,12 +123,6 @@ export const useAuth = () => {
     } catch (err: any) {
       console.error("fetchUserProfile error:", err);
       
-      // Check for auth errors
-      const errMsg = (err.message || '').toLowerCase();
-      if (errMsg.includes('refresh token') || errMsg.includes('refresh_token_not_found')) {
-        clearSession();
-      }
-
       // Resilience: If it's a network error and we are super admin, we can still load
       if (isSuperAdminEmail && (err.message?.includes('fetch') || err.name === 'TypeError')) {
         console.log("Network error but super admin detected, using local fallback...");
@@ -195,7 +174,6 @@ export const useAuth = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem('teacher_session');
     OfflineService.removeCache('profile');
     window.location.reload();
   };
@@ -209,57 +187,34 @@ export const useAuth = () => {
           console.error("Auth session error:", error);
           const errorMessage = error.message.toLowerCase();
           if (errorMessage.includes('refresh token') || errorMessage.includes('refresh_token_not_found')) {
-            clearSession();
+            try {
+              await supabase.auth.signOut();
+            } catch (signOutErr) {
+              console.error("Error during sign out:", signOutErr);
+            }
+            localStorage.removeItem('madrasah_auth_token');
+            OfflineService.removeCache('profile');
+            setSession(null);
+            setProfile(null);
+            setMadrasah(null);
+            window.location.reload();
           }
         }
 
         if (currentSession) {
           setSession(currentSession);
           await fetchUserProfile(currentSession.user.id, currentSession.user.email);
-        } else {
-          const teacherSession = localStorage.getItem('teacher_session');
-          if (teacherSession) {
-            try {
-              const teacherData = JSON.parse(teacherSession);
-              console.log("Restoring Teacher Session:", { id: teacherData?.id, role: 'teacher' });
-              
-              // Teachers usually have their madrasah data embedded or cached
-              const mData = Array.isArray(teacherData.institution_data) 
-                ? teacherData.institution_data[0] 
-                : teacherData.institution_data || Array.isArray(teacherData.madrasahs) ? teacherData.madrasahs[0] : teacherData.madrasahs;
-              
-              // Ensure permissions is an object
-              let permissions = teacherData.permissions;
-              if (typeof permissions === 'string') {
-                try {
-                  permissions = JSON.parse(permissions);
-                } catch (e) {
-                  console.error("Error parsing permissions string:", e);
-                }
-              }
-              
-              setMadrasah(mData);
-              setProfile({
-                id: teacherData.id,
-                institution_id: teacherData.institution_id,
-                full_name: teacherData.name,
-                role: 'teacher',
-                is_active: true,
-                created_at: teacherData.created_at,
-                permissions: permissions
-              });
-              setSession({ user: { id: teacherData.id } });
-            } catch (parseErr) {
-              console.error("Error parsing teacher session:", parseErr);
-              localStorage.removeItem('teacher_session');
-            }
-          }
         }
       } catch (err: any) {
         console.error("Auth initialization error:", err);
         const errorMessage = (err?.message || '').toLowerCase();
         if (errorMessage.includes('refresh token') || errorMessage.includes('refresh_token_not_found')) {
-          clearSession();
+          localStorage.removeItem('madrasah_auth_token');
+          OfflineService.removeCache('profile');
+          setSession(null);
+          setProfile(null);
+          setMadrasah(null);
+          window.location.reload();
         }
       } finally {
         setLoading(false);
@@ -268,13 +223,11 @@ export const useAuth = () => {
 
     initializeAuth();
 
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         setSession(null); 
         setMadrasah(null); 
         setProfile(null);
-        localStorage.removeItem('teacher_session');
       } else if (session) {
         setSession(session);
         fetchUserProfile(session.user.id, session.user.email);

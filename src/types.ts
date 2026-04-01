@@ -5,7 +5,7 @@
 
 export type Language = 'bn' | 'en';
 
-export type UserRole = 'super_admin' | 'madrasah_admin' | 'teacher' | 'accountant';
+export type UserRole = 'super_admin' | 'madrasah_admin' | 'accountant' | 'manager' | 'teacher';
 
 export interface Institution {
   id: string;
@@ -122,6 +122,7 @@ export interface Profile {
     dashboard?: boolean;
     institutions?: boolean;
     approvals?: boolean;
+    managers?: boolean;
     tutorials?: boolean;
     // Teacher specific permissions
     can_manage_students?: boolean;
@@ -210,31 +211,6 @@ export interface ExamMark {
   student_id: string;
   subject_id: string;
   marks_obtained: number;
-}
-
-export interface Teacher {
-  id: string;
-  institution_id: string;
-  name: string;
-  phone: string;
-  login_code: string;
-  is_active: boolean;
-  permissions: {
-    can_manage_students: boolean;
-    can_manage_classes: boolean;
-    can_send_sms: boolean;
-    can_send_free_sms: boolean;
-    can_manage_exams?: boolean;
-    can_manage_accounting?: boolean;
-    can_use_voice_call?: boolean;
-    can_manage_attendance?: boolean;
-    can_manage_institutions?: boolean;
-    can_manage_approvals?: boolean;
-    can_manage_sms?: boolean;
-    can_manage_settings?: boolean;
-    allowed_classes?: string[];
-  };
-  created_at: string;
 }
 
 export interface Attendance {
@@ -349,8 +325,8 @@ export type View =
   | 'wallet-sms' 
   | 'admin-dashboard' 
   | 'admin-approvals' 
+  | 'admin-managers'
   | 'data-management' 
-  | 'teachers' 
   | 'accounting' 
   | 'attendance'
   | 'exams'
@@ -362,6 +338,10 @@ export type View =
   | 'tutorials'
   | 'admin-voice-service'
   | 'admin-tutorials'
+  | 'teacher-management'
+  | 'teachers'
+  | 'teacher-login'
+  | 'teacher-dashboard'
   | 'super-account';
 
 export interface Tutorial {
@@ -370,6 +350,30 @@ export interface Tutorial {
   url: string;
   youtube_url: string;
   sort_order: number;
+  created_at: string;
+}
+
+export interface Teacher {
+  id: string;
+  institute_id: string;
+  teacher_name: string;
+  mobile: string;
+  designation?: string;
+  photo_url?: string;
+  status: 'active' | 'inactive';
+  last_login_at?: string;
+  created_at: string;
+  permissions?: TeacherPermissions;
+}
+
+export interface TeacherPermissions {
+  id: string;
+  teacher_id: string;
+  can_manage_students: boolean;
+  can_manage_attendance: boolean;
+  can_manage_exams: boolean;
+  can_manage_accounting: boolean;
+  can_send_sms: boolean;
   created_at: string;
 }
 

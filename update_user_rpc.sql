@@ -13,15 +13,15 @@ AS $$
 DECLARE
   v_encrypted_pw TEXT;
 BEGIN
-  -- 1. Check if caller is super_admin
+  -- 1. Check if caller is super_admin or manager
   IF NOT (
     EXISTS (
       SELECT 1 FROM public.profiles 
       WHERE id = auth.uid() 
-      AND role = 'super_admin'
+      AND (role = 'super_admin' OR role = 'manager')
     )
   ) THEN
-    RAISE EXCEPTION 'Access Denied: Only Super Admins can update users directly.';
+    RAISE EXCEPTION 'Access Denied: Only Super Admins or Managers can update users directly.';
   END IF;
 
   -- 2. Update password if provided

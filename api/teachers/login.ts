@@ -32,6 +32,15 @@ export default async function handler(req, res) {
 
     const teacherData = teacher[0];
 
+    // Fetch institution details
+    const { data: institution, error: instError } = await supabase
+      .from('institutions')
+      .select('*')
+      .eq('id', teacherData.institution_id)
+      .single();
+
+    if (instError) console.error('Error fetching institution:', instError);
+
     // Update last login
     await supabase
       .from('teachers')
@@ -39,15 +48,15 @@ export default async function handler(req, res) {
       .eq('id', teacherData.id);
 
     res.status(200).json({ 
-      user: {
-        id: teacherData.id,
-        role: 'teacher',
-        name: teacherData.teacher_name,
-        institute_id: teacherData.institution_id,
-        designation: teacherData.designation,
-        photo_url: teacherData.photo_url,
-        permissions: teacherData.permissions
-      }
+      id: teacherData.id,
+      role: 'teacher',
+      name: teacherData.teacher_name,
+      teacher_name: teacherData.teacher_name,
+      institution_id: teacherData.institution_id,
+      institute: institution,
+      designation: teacherData.designation,
+      photo_url: teacherData.photo_url,
+      permissions: teacherData.permissions
     });
   } catch (err) {
     console.error('Login error:', err);
